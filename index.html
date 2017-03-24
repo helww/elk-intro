@@ -293,8 +293,41 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
 response:200
 !response:200
 
-区间查询：price:[50 TO 100000]
+[区间查询]
+[]:端点数值包含在范围内
+{}:端点数值不包含在范围内
+price:[50 TO 100000]
+date:{"now-6h" TO "now"}
+
+[通配符]
+?:匹配单个字符
+*:匹配0到多个字符
+kiba*a, el*search
+
+[模糊查询]
+~:单词后加~启用模糊搜索
+first~ 能匹配到frist
+
+[近似搜索]
+"select where"~ 表示select和where之间隔着3个单词以内
+
+指定相似度
+cromm~0.3 能匹配到from,chrome
+数值范围0.0 ~ 1.0，默认0.5，越大越接近搜索的原始值
+
 逻辑操作：AND, OR, !
+(nginx OR apache) AND api
+
++:搜索结果必须包含此项
+-：搜索结果必须不包含此项
++apache -nginx api：包含apache，不包含nginx，api可有可无
+
+[字段分组]
+title:(+api +sms)
+
+[特殊字符]
++ - && || ! () {} [] ^" ~ * ? : \
+特殊字符作为值搜索时需要用\转义
         </pre>
     </div>
     </div>
@@ -304,6 +337,7 @@ response:200
 <div id="chapter4"><h3>参考文献：</h3></div>
 <ol>
     <li>网页：http://www.jianshu.com/p/5be9d0b32c58</li>
+    <li>kibana查询语法：https://segmentfault.com/a/1190000002972420</li>
     <li>书籍：《ElasticSearch权威指南》</li>
 </ol>
 </div>
