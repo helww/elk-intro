@@ -199,6 +199,12 @@ PUT	/website/blog/123
 "_version":	1,
 "created":	true
 }
+
+curl -X DELETE  http://localhost:9200/debug-log-2017.04.13/debug_log/AVtnGe5VSS9WNB-y43iv
+{"found":true,"_index":"debug-log-2017.04.13","_type":"debug_log","_id":"AVtnGe5VSS9WNB-y43iv","_version":2,"result":"deleted","_shards":{"total":2,"successful":1,"failed":0}}
+
+curl -XPOST  'http://localhost:9200/debug-log-2017.04.17/debug_log/AVt56IqWjEftJIiCDQyC/_update' -d '{"doc":{"message":"2017-04-17 11:15:33 password:22222"}}'
+{"_index":"debug-log-2017.04.17","_type":"debug_log","_id":"AVt56IqWjEftJIiCDQyC","_version":2,"result":"updated","_shards":{"total":2,"successful":1,"failed":0}}
 </pre>
 </div>
 <li><div>查询语法</div></li></ul>
@@ -274,11 +280,23 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
 }'
 </pre>
 <div>
-    <a targe="_blank" href="http://blog.csdn.net/mikon_lee/article/details/39344547">关于ElasticSearch的分词工具lucence</a>
+    <a targe="_blank" href="http://blog.csdn.net/mikon_lee/article/details/39344547">分词：关于ElasticSearch的分词工具lucence</a>
 </div>
 <div>
-    <a targe="_blank" href="http://blog.sina.com.cn/s/blog_67196ddc0101a3so.html">关于Lucence的中文分词工具IK-Analyzer</a>
+    <a targe="_blank" href="http://blog.sina.com.cn/s/blog_67196ddc0101a3so.html">分词：关于Lucence的中文分词工具IK-Analyzer</a>
 </div>
+        <div>
+            <a targe="_blank" href="http://www.cnblogs.com/xing901022/p/4957543.html">api：REST API</a>
+        </div>
+        <div>
+            <a targe="_blank" href="http://www.cnblogs.com/dream-to-pku/p/5751731.html">api流程：文档操作流程</a>
+        </div>
+        <div>
+            <a targe="_blank" href="http://www.cnblogs.com/o-andy-o/p/5067184.html">集群管理：宕机和扩容</a>
+        </div>
+        <div>
+            <a targe="_blank" href="https://www.elastic.co/guide/en/elasticsearch/reference/1.4/index.html">官方guide</a>
+        </div>
         </div>
     </div>
 
