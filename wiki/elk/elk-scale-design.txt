@@ -1,0 +1,145 @@
+https://www.elastic.co/guide/en/elasticsearch/guide/current/scale.html
+
+首先吹了一顿牛逼，说从笔记本到包含上百的节点，还是从小集群到大的集群，都没问题，可以无痛迁移。
+
+然后又怂了，说如果从大集群到超级打击群，还是需要点规划和设计工作的。wtf
+
+举了两种类型的数据：基于时间的，和基于用户的
+
+然后建议无论如何要了解下这份文档，以免后面被惊吓到，说的倒也是在理
+
+有几个因素需要考量：number_of_shards，number_of_primary_shards
+
+首先考虑只有一个primary shard，这样尽管是允许的，但是如果数据量大的话，一个节点很容易吃得过饱。
+并且鉴于如果一开始只有一个primary shard，将来要做多个的时候，reindex的代价是很高的
+（以上翻译来自：https://www.elastic.co/guide/en/elasticsearch/guide/current/shard-scale.html）
+
+
+接下来考虑下，如果只有一个node，该node上有2个primary shards，且没有replica shards
+这种情况下，如果加一个node，elasticSearch会自动将2个primary shards中的一个，移动到新加的node2上
+
+用户经常会抱怨ElasticSearch不支持shard-splitting（把一个shard切分成2份或者更多份）。原因如下：
+1，split会导致重新索引你的所有数据（reindexing）。这个代价很很大的；
+2，split是指数级的。从1到2，到4，到8...
+3，split会让你的节点存储2倍的index，这个在现实中会很容易出现问题。你的机器总是在已经超过50%的情况下才会考虑split，2倍索引意味着要撑爆节点
+综上所述，ElasticSearch不提供shard splitting的功能。
+当然你可以重新索引的你数据到新的index上，在有合适数量的shards节点时。尽管很耗时，但是是一个选择。
+（以上翻译来自：https://www.elastic.co/guide/en/elasticsearch/guide/current/overallocation.html）
+
+是否要试试上来就搞1000个primary shards？
+考虑一丢丢primary shards的扩展是好的，但是太大的primary shards节点数是不可取的
+（以上翻译来自：https://www.elastic.co/guide/en/elasticsearch/guide/current/kagillion-shards.html）
+
+1个太少，1000个太多，那么取多少合适呢？
+可能接来下的步骤比较适合你：
+1，创建单一节点的集群，线上环境机器；
+2，在节点上配置（这个节点是线上环境的，相同的），只使用1个primary shard并且没有replica shard
+3，用真实数据去填充集群
+4，运行真实的query和aggregation
+
+使用这个配置直到节点崩溃， 或者节点已经很慢了。这样我们拿到了针对我们环境的一个基准值，单个primary shard能支撑多少数据量
+
+我们估算一个目前线上的量级，并考虑一定的增长量，除以这个基准值，就是我们需要的primary shards的数量。
+
+扩容计划并不是你要做的第一步。
+第一，试着去优化ElasticSearch的查询语句，或许是个很低效的查询语句，或许是内存不够，或者是swap太多？
+我们已经看到有部分用户已经在抱怨ElasticSearch的性能，立即去调整Garbage collector或者线程数目，而不是简单地去remove掉wildcard query。
+（以上翻译来自：https://www.elastic.co/guide/en/elasticsearch/guide/current/capacity-planning.html）
+
+以上所有的直谈到了primary shard，还没有谈及另外一个工具：replica shards 
+replica的作用，作为primary shard 的热备，一旦挂掉primary立马有replica顶上
+index时，replica做的和primary是一样的工作。
+不过在read时，replica就能被使用到了。要增大search的能力，你只需要增加硬件即可。
+1，Replica增加后，能允许我们丢失更多的节点，而不影响正常工作。
+2，Replica加入后，能允许我们进入更多的search请求量
+（以上翻译来自：https://www.elastic.co/guide/en/elasticsearch/guide/current/replica-shards.html）
+
+除了replica shards 能够帮助承担更多的任务，还可以设置多个索引。
+这个能力，让你不用再reindex之前的老数据，你可以这样做：
+1，创建一个新的index，新数据走创建的index；
+2，search时你可以使用老的索引和新的索引。
+增加index不需要应用层做任何事情，系统内部支持这个功能。
+索引可以做alias操作，使用多个索引在某些场景下非常有用（比如日志，社会事件流），下个章节会讨论到。
+（以上翻译来源：https://www.elastic.co/guide/en/elasticsearch/guide/current/multiple-indices.html）
+
+{
+  "actions": [
+    { "add":    { "alias": "logs_current",  "index": "logs_2014-10" }}, 
+    { "remove": { "alias": "logs_current",  "index": "logs_2014-09" }}, 
+    { "add":    { "alias": "last_3_months", "index": "logs_2014-10" }}, 
+    { "remove": { "alias": "last_3_months", "index": "logs_2014-07" }}  
+  ]
+alias索引操作要看懂。
+1，logs_current是个alias索引，可以认为是个index的set集合。把10月的加入到logs_current中
+2, 把9月的index从logs_current中删除
+3，把10月的索引加入到last_3_months
+4, 把7月的索引从last_3_months中删除
+(以上翻译来自：https://www.elastic.co/guide/en/elasticsearch/guide/current/time-based.html)
+
+index-template：主要讲了log索引的创建方法
+（以上翻译来自：https://www.elastic.co/guide/en/elasticsearch/guide/current/index-templates.html）
+
+谈谈如何更好地处理历史索引
+直接删除索引是个不错的选择，尤其考虑到日志，我们更关心当下的数据。但是如果delete index，所有的文档就丢失了。
+我们来谈谈有没有更柔性地处理方式
+ElasticSearch可以通过设置box_type来调节冷热索引，当天的索引设置box_type=strong，昨天的索引设置box_type=medium
+ElasticSearch也提供了对于索引的number_of_replica_shards的修改api，降低其数据的备份数据量
+ElasticSearch也提供了关闭索引的api，索引仍然存在，但是不再能被搜索到。只是我们排查问题的时候可以随时能启用。
+api如下：_flush, _close, _open
+如果索引已经确实不再被使用，只想作为历史归档被查询的话。建议使用存储api把数据落盘或者存到S3上。未来还能使用到，
+一旦完成了备份，就可以整个删除索引。
+(以上翻译来自于：https://www.elastic.co/guide/en/elasticsearch/guide/current/retiring-data.html)
+
+ 
+Shared index
+如果我们要索引的是bbs板块，每个板块都是板块名称。
+假设我们针对bbs板块设置了10个shards。
+我们插入一条数据：
+PUT /forums/post/1
+{
+  "forum_id": "baking", 
+  "title":    "Easy recipe for ginger nuts",
+  ...
+}
+然后检索：
+GET /forums/post/_search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match": {
+          "title": "ginger nuts"
+        }
+      },
+      "filter": {
+        "term": {
+          "forum_id": {
+            "baking"
+          }
+        }
+      }
+    }
+  }
+}
+这样的检索是能够工作的，但是可以有更好的解决方案。想象一下，我们要搜索某个指定板块的某个主题，我们不得不遍历10个shards才能得到结果，这个是可以优化的。比如按照forum-name即板块名称来做shard，这样我们能快速定位到某个shard上，从而省去了其它9个shard的查找工作。
+那么如何能够做到呢？使用routing参数即可。
+PUT /forums/post/1?routing=baking 
+{
+  "forum_id": "baking", 
+  "title":    "Easy recipe for ginger nuts",
+  ...
+}
+不过我们必须在搜索条件加上routing参数，如果包含多个板块，可以以逗号分隔。
+GET /forums/post/_search?routing=baking,cooking,recipes
+这样看起来好像有点蠢：必须在搜索条件上加上板块名称。index alias在这里就能用到了
+（以上翻译来自：https://www.elastic.co/guide/en/elasticsearch/guide/current/shared-index.html）
+本来希望能在下面的链接上看到有所突破，结果只是换了个形式，参数该传的一样没少。。。
+(https://www.elastic.co/guide/en/elasticsearch/guide/current/faking-it.html)
+
+alias提供了一个未来数据增长的应对方案
+如果某个板块变得很大，我们可以将big-index放到新的alias中，并且将big-index从原先的forum中移除
+原理类似于新老数据的索引解决方案。
+（以上思路和场景来自：https://www.elastic.co/guide/en/elasticsearch/guide/current/one-big-user.html）
+
+以上所有的讨论均围绕如何扩容来展开，大部分需要增加新节点，但是现实中资源是有限的，所以我们得认真对待集群状态，根据集群状态来调整我们的节点数
+（以上思路和场景来自：https://www.elastic.co/guide/en/elasticsearch/guide/current/finite-scale.html）
